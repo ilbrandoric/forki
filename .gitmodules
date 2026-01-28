@@ -1,0 +1,3 @@
+[submodule "reference/flappy-bird"]
+	path = reference/flappy-bird
+	url = https://github.com/ilbrandoric/flappy-bird-game

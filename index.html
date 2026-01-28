@@ -1,13 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Forki</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div id="app"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forkcraft</title>
 
-  <script src="main.js"></script>
-</body>
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <div id="app">
+
+      <div id="start-screen">
+        <h1 id="game-title">Forkcraft</h1>
+        <button id="start-btn">Start</button>
+      </div>
+
+      <div id="game-screen" class="hidden">
+        <div id="hud">
+          <span id="timer">Time: 30</span>
+          <span id="score">Score: 0</span>
+          <button id="audio-toggle-btn" style="margin-left: auto; padding: 8px 12px; font-size: 18px; background: none; border: none; cursor: pointer;">🔊</button>
+        </div>
+
+        <div id="game-area">
+          <div id="player">🚜</div>
+          <div id="box">📦</div>
+          <div id="drop-zone">X</div>
+        </div>
+      </div>
+
+      <div id="game-over-screen" class="hidden">
+        <p id="result-text">Game Over</p>
+        <button id="restart-btn">Restart</button>
+      </div>
+
+    </div>
+
+    <!-- JS (module is CRITICAL) -->
+    <script type="module" src="js/main.js"></script>
+    
+  </body>
 </html>

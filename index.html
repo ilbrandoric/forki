@@ -13,15 +13,17 @@
     <div id="app">
 
       <div id="start-screen">
-        <h1 id="game-title">Forkcraft</h1>
-        <button id="start-btn">Start</button>
+        <h1 id="game-title"></h1>
+        <button id="start-btn" class="btn btn-primary">Start</button>
       </div>
 
       <div id="game-screen" class="hidden">
         <div id="hud">
-          <span id="timer">Time: 30</span>
-          <span id="score">Score: 0</span>
-          <button id="audio-toggle-btn" style="margin-left: auto; padding: 8px 12px; font-size: 18px; background: none; border: none; cursor: pointer;">🔊</button>
+          <div class="hud-stats">
+            <span id="timer">Time: 30</span>
+            <span id="score">Score: 0</span>
+          </div>
+          <button id="audio-toggle-btn" class="btn-icon">🔊</button>
         </div>
 
         <div id="game-area">
@@ -33,7 +35,7 @@
 
       <div id="game-over-screen" class="hidden">
         <p id="result-text">Game Over</p>
-        <button id="restart-btn">Restart</button>
+        <button id="restart-btn" class="btn btn-primary">Restart</button>
       </div>
 
     </div>

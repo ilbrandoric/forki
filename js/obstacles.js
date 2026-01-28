@@ -2,29 +2,63 @@ console.log("obstacles.js loaded")
 
 import { checkCollision } from "./collision.js"
 import { triggerGameOver, getGameState } from "./game-state.js"
+import { isRatAlive, getRatElement, checkRatLifetime, updateRat } from "./rat.js"
+
+// ============================================================================
+// ENTITIES: Cones (Static Obstacles), Persons (Moving Hazards), Rats (Temporary Moving Hazards)
+// Lifecycle: INIT (on game start) → UPDATE (in interval loop) → RENDER (in interval loop) → CLEANUP (on game end)
+// Collision Participation: Cones block movement; Persons & Rats trigger game over on collision
+// ============================================================================
+//
+// INIT PHASE (Game Start):
+//   - Cones: Initialized once per game when state="playing" (guard: conesInitialized)
+//   - Persons: Initialized once per game when state="playing" (guard: personsInitialized)
+//   - Both use guards to prevent repeated initialization
+//   - Both are created and added to DOM dynamically
+//
+// UPDATE PHASE (Periodic Interval):
+//   - Triggered by setInterval(50ms)
+//   - Calculates movement, handles bounces, checks collisions
+//   - Only runs when state="playing"
+//   - Persons move; cones are static
+//
+// RENDER PHASE (Periodic Interval):
+//   - Triggered by setInterval(50ms)
+//   - Updates DOM positions for persons
+//   - Cones are static (no movement, no render updates)
+//   - Frequency: 20 times per second
+//
+// CLEANUP PHASE (Game End):
+//   - Triggered when state != "playing"
+//   - Cones removed from DOM, positions cleared
+//   - Persons removed from DOM, array cleared
+//   - Cleanup guards reset (conesInitialized = false, personsInitialized = false)
+//   - Next game will reinitialize fresh
+//
+// ============================================================================
 
 // Get DOM elements
 const playerNode = document.querySelector("#player")
 const boxNode = document.querySelector("#box")
 const gameAreaNode = document.querySelector("#game-area")
 
-// Guard to prevent repeated failure triggers
+// INIT: Guards to prevent repeated initialization per round
 let failureTriggered = false
 
-// Guard to ensure cones initialize once per round
+// INIT: Guard to ensure cones initialize once per round (reset on cleanup)
 let conesInitialized = false
 
-// Guard to ensure persons initialize once per round
+// INIT: Guard to ensure persons initialize once per round (reset on cleanup)
 let personsInitialized = false
 
-// Movement speed (pixels per tick)
+// UPDATE: Movement speed (pixels per tick)
 const speed = 4
 
-// Cone initialization and placement
+// INIT: Cone initialization and placement
 const conePositions = []
 const numCones = 3
 
-// Persons array
+// INIT: Persons array
 const persons = []
 
 function initializeCones() {
@@ -87,7 +121,7 @@ function initializeCones() {
   }
 }
 
-// Private function to check if a position overlaps with any cone
+// Private function to check if a position overlaps with any cone (collision)
 function checkPositionAgainstCones(x, y, width, height) {
   for (const cone of conePositions) {
     const coneX = parseFloat(cone.element.style.left)
@@ -101,12 +135,16 @@ function checkPositionAgainstCones(x, y, width, height) {
   return false // No collision
 }
 
-// Export single boolean decision function for movement blocking
+// COLLISION: Export single boolean decision function for movement blocking (used by main.js)
 export function isPositionBlockedByCones(x, y, width, height) {
   return checkPositionAgainstCones(x, y, width, height)
 }
 
-// Initialize persons
+// ============================================================================
+// PERSONS INITIALIZATION
+// ============================================================================
+
+// INIT: Initialize persons
 function initializePersons() {
   const gameAreaRect = gameAreaNode.getBoundingClientRect()
   const dropZoneNode = document.querySelector("#drop-zone")
@@ -182,19 +220,22 @@ function initializePersons() {
   }
 }
 
-// Start automatic movement
+// MAIN LOOP: Periodic update and render for obstacles (cones and persons)
+// Entry point: setInterval(50ms) – 20 times per second
 setInterval(() => {
   const currentState = getGameState()
   
   // Only run obstacle logic when game is playing
   if (currentState !== "playing") {
-    // Reset cones when exiting playing state for next round
+    // CLEANUP: Reset cones when exiting playing state for next round
+    // This guard-based cleanup ensures consistent state between rounds
     if (conesInitialized) {
       conesInitialized = false
       conePositions.length = 0
       document.querySelectorAll("div[style*='🚧']").forEach(cone => cone.remove())
     }
-    // Reset persons when exiting playing state for next round
+    // CLEANUP: Reset persons when exiting playing state for next round
+    // This guard-based cleanup ensures consistent state between rounds
     if (personsInitialized) {
       personsInitialized = false
       persons.forEach(person => person.element.remove())
@@ -204,23 +245,26 @@ setInterval(() => {
     return
   }
   
-  // Initialize cones once when entering playing state
+  // INIT: Initialize cones once when entering playing state
+  // Guard prevents double-initialization even if game state = "playing" for multiple intervals
   if (!conesInitialized) {
     initializeCones()
     conesInitialized = true
   }
   
-  // Initialize persons once when entering playing state
+  // INIT: Initialize persons once when entering playing state
+  // Guard prevents double-initialization even if game state = "playing" for multiple intervals
   if (!personsInitialized) {
     initializePersons()
     personsInitialized = true
   }
   
-  // Move each person
+  // UPDATE & RENDER: Move each person (movement, collision detection, rendering)
+  // Runs once per interval (50ms) when playing
   const gameAreaRect = gameAreaNode.getBoundingClientRect()
   
   for (const person of persons) {
-    // Calculate next position
+    // UPDATE: Calculate next position
     let nextX = person.x
     let nextY = person.y
     
@@ -232,14 +276,18 @@ setInterval(() => {
       nextY += person.direction * speed
     }
     
-    // Check if next position is blocked
+    // COLLISION: Check if next position is blocked (world geometry)
     const maxX = gameAreaRect.width - person.width
     const maxY = gameAreaRect.height - person.height
     const outOfBounds = nextX < 0 || nextX > maxX || nextY < 0 || nextY > maxY
     const blockedByCones = checkPositionAgainstCones(nextX, nextY, person.width, person.height)
     
+    // COLLISION (MOVEMENT-BLOCKING): Person vs Cones
+    // Purpose: Prevent persons from moving through cone obstacles
+    // Type: Movement-deciding (affects next movement calculation)
+    // Ownership: Centralized in obstacles.js (this loop)
     if (outOfBounds || blockedByCones) {
-      // Reverse direction
+      // UPDATE: Reverse direction (bounce off obstacle)
       person.direction *= -1
       // Recalculate with new direction
       if (person.axis === 0) {
@@ -249,13 +297,16 @@ setInterval(() => {
       }
     }
     
-    // Update position
+    // RENDER: Update position
     person.x = nextX
     person.y = nextY
     person.element.style.left = nextX + "px"
     person.element.style.top = nextY + "px"
     
-    // Check collision with player
+    // COLLISION (TERMINAL): Person vs Player
+    // Purpose: Trigger game over if person touches player (hazard hit)
+    // Type: Terminal (ends game)
+    // Ownership: Centralized in obstacles.js (persons autonomously check)
     if (checkCollision(playerNode, person.element)) {
       if (!failureTriggered) {
         failureTriggered = true
@@ -263,8 +314,39 @@ setInterval(() => {
       }
     }
     
-    // Check collision with box
+    // COLLISION (TERMINAL): Person vs Box
+    // Purpose: Trigger game over if person touches box (cargo hit)
+    // Type: Terminal (ends game)
+    // Ownership: Centralized in obstacles.js (persons autonomously check)
     if (checkCollision(boxNode, person.element)) {
+      if (!failureTriggered) {
+        failureTriggered = true
+        triggerGameOver("Game Over!")
+      }
+    }
+  }
+  
+  // RAT LIFETIME CHECK: Expire rat if lifetime exceeded
+  // Purpose: Remove rat from game after fixed duration (5 seconds)
+  // Ownership: Centralized in obstacles.js (coordinated with main loop)
+  // Frequency: Checked every 50ms interval (20 times per second)
+  checkRatLifetime()
+  
+  // RAT MOVEMENT UPDATE: Move rat if alive
+  // Purpose: Autonomous axis-based movement with boundary handling
+  // Ownership: Centralized in obstacles.js (coordinated with main loop)
+  // Pattern: Mirrors persons movement (axis-based, boundary bounce)
+  // Frequency: Updated every 50ms interval (20 times per second)
+  updateRat()
+  
+  // COLLISION (TERMINAL): Rat vs Player
+  // Purpose: Trigger game over if player touches rat (hazard hit)
+  // Type: Terminal (ends game)
+  // Ownership: Centralized in obstacles.js (rats autonomously check like persons)
+  // Note: Rat collision mirrors person collision pattern (passive entities check player)
+  if (isRatAlive()) {
+    const ratElement = getRatElement()
+    if (checkCollision(playerNode, ratElement)) {
       if (!failureTriggered) {
         failureTriggered = true
         triggerGameOver("Game Over!")

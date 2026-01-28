@@ -1,12 +1,10 @@
 console.log("Forki booting...");
 
-
-
 // Game state variables
 const GAME_STATE = {
   BOOT: "boot",
   PLAYING: "playing",
-  PAUSED: "paused"
+  PAUSED: "paused",
 };
 
 let gameState = GAME_STATE.BOOT;
@@ -39,10 +37,9 @@ const obstacles = [
     x: 300,
     y: 200,
     width: 100,
-    height: 40
-  }
+    height: 40,
+  },
 ];
-
 
 //Game container (DOM Setup)
 
@@ -53,14 +50,13 @@ const game = document.createElement("div");
 //This is also the 'world' for JS
 game.id = "game";
 
-
 // Is a key pressed? (Movement intent NOT movement itself)
 
 const input = {
   left: false,
   right: false,
   up: false,
-  down: false
+  down: false,
 };
 
 window.addEventListener("keydown", (e) => {
@@ -77,7 +73,6 @@ window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowDown") input.down = false;
 });
 
-
 /*
 
 JS defines reality
@@ -93,15 +88,32 @@ Logic to the fine 'world size' in pixels. This way:
 
 game.style.width = GAME_WIDTH + "px";
 game.style.height = GAME_HEIGHT + "px";
-game.style.position = "relative";  
+game.style.position = "relative";
 game.style.background = "#222";
 game.style.margin = "40px auto";
 
-//Puts the game <div id="game"> inside the <div id="app">  
+//Puts the game <div id="game"> inside the <div id="app">
 app.appendChild(game);
 
 
-/* === World state (authoritative game data; logic, not visuals) === */
+
+// Start / Restart button
+
+const resetButton = document.createElement("button");
+resetButton.textContent = "Start / Restart";
+resetButton.style.display = "block";
+resetButton.style.margin = "10px auto";
+app.appendChild(resetButton);
+
+
+resetButton.addEventListener("click", () => {
+  resetWorld();
+  setGameState(GAME_STATE.PLAYING);
+});
+
+
+
+/* === World state (logic, not visuals) === */
 
 // Create a game state object (data position)
 
@@ -111,11 +123,10 @@ const state = {
     y: 100,
     width: 40,
     height: 40,
-    vx: 0,       //Velocity value
-    vy: 0
-  }
+    vx: 0, //Velocity value
+    vy: 0,
+  },
 };
-
 
 // Crate data (STATE)
 
@@ -123,9 +134,31 @@ const crate = {
   x: 100,
   y: 200,
   width: 40,
-  height: 40
+  height: 40,
 };
 
+// Initial world snapshot (for reset)
+const initialState = {
+  player: { x: state.player.x, y: state.player.y },
+  crate: { x: crate.x, y: crate.y }
+};
+
+// Reset function
+
+function resetWorld() {
+  // Reset player
+  state.player.x = initialState.player.x;
+  state.player.y = initialState.player.y;
+  state.player.vx = 0;
+  state.player.vy = 0;
+
+  // Reset crate
+  crate.x = initialState.crate.x;
+  crate.y = initialState.crate.y;
+
+  // Reset timing so movement doesn't jump
+  lastTime = 0;
+}
 
 
 // ==== Defines objects ====
@@ -145,15 +178,12 @@ obstacleEl.style.position = "absolute";
 obstacleEl.style.background = "gray";
 game.appendChild(obstacleEl);
 
-// Creates crate 
+// Creates crate
 
 const crateEl = document.createElement("div");
 crateEl.style.position = "absolute";
 crateEl.style.background = "brown";
 game.appendChild(crateEl);
-
-
-
 
 // === Renders objects visually inside world ===
 
@@ -173,13 +203,11 @@ function render() {
   obstacleEl.style.top = obstacles[0].y + "px";
 
   // Crate
-crateEl.style.width = crate.width + "px";
-crateEl.style.height = crate.height + "px";
-crateEl.style.left = crate.x + "px";
-crateEl.style.top = crate.y + "px";
-
+  crateEl.style.width = crate.width + "px";
+  crateEl.style.height = crate.height + "px";
+  crateEl.style.left = crate.x + "px";
+  crateEl.style.top = crate.y + "px";
 }
-
 
 /*  === World boundaries ===
  clamp explained: (where the player is at, min = world begins here, max = world ends here) 
@@ -189,20 +217,20 @@ Math.min(max,…) = Do not allow value to be bigger than max
 Math.max(min, …) = Do not allow value to be smaller than min
 */
 
-function clamp(value, min, max) {   
+function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
- }
+}
 
 // This causes a collision: if X overlap AND Y overlap if TRUE = Collision
 
-
 function isColliding(a, b) {
   return (
-    a.x < b.x + b.width && a.x + a.width > b.x && // Is A’s left edge left of B’s right edge?
-    a.y < b.y + b.height && a.y + a.height > b.y
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x && // Is A’s left edge left of B’s right edge?
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
   );
 }
-
 
 function gameLoop(timestamp) {
   if (lastTime === 0) {
@@ -211,52 +239,89 @@ function gameLoop(timestamp) {
     return;
   }
 
-  // Delta time in seconds 
-  const deltaTime = (timestamp - lastTime) / 1000;  
+  // Delta time in seconds
+  const deltaTime = (timestamp - lastTime) / 1000;
   lastTime = timestamp;
-
 
   // Playing block
   if (getGameState() === GAME_STATE.PLAYING) {
-
     // Reset velocity: no keystroke = no movement
     state.player.vx = 0;
     state.player.vy = 0;
 
     // Input → velocity (intent)
-    if (input.left)  state.player.vx -= PLAYER_SPEED; // Left is negative like in cartesian plane
+    if (input.left) state.player.vx -= PLAYER_SPEED; // Left is negative like in cartesian plane
     if (input.right) state.player.vx += PLAYER_SPEED;
-    if (input.up)    state.player.vy -= PLAYER_SPEED;
-    if (input.down)  state.player.vy += PLAYER_SPEED;
+    if (input.up) state.player.vy -= PLAYER_SPEED;
+    if (input.down) state.player.vy += PLAYER_SPEED;
 
     const prevX = state.player.x;
     const prevY = state.player.y;
-
 
     // This is where movement happens
     state.player.x += state.player.vx * deltaTime;
     state.player.y += state.player.vy * deltaTime;
 
+    /*
+    Collision checks if objects overlap, if they do then restore previous position. 
+    In otherwords, "rewind" to previous position. 
+
+    */
+
     // Collision with obstacles
     for (const obstacle of obstacles) {
-    if (isColliding(state.player, obstacle)) {
-    state.player.x = prevX;
-    state.player.y = prevY;
-        }
+      if (isColliding(state.player, obstacle)) {
+        state.player.x = prevX;
+        state.player.y = prevY;
+      }
     }
 
+    // Collision with crate (attempt push)
+    if (isColliding(state.player, crate)) {
+      const dx = state.player.x - prevX; // Horizontal change (current x - previous x = movement diff)
+      const dy = state.player.y - prevY; // Vertical change
+
+      // Attempt to move crate by same amount player moved
+      crate.x += dx;
+      crate.y += dy;
+
+      // Check if crate move is valid
+      let crateBlocked = false;
+
+      // World bounds
+      if (
+        crate.x < 0 ||
+        crate.y < 0 ||
+        crate.x + crate.width > GAME_WIDTH ||
+        crate.y + crate.height > GAME_HEIGHT
+      ) {
+        crateBlocked = true;
+      }
+
+      // Obstacle collisions
+      for (const obstacle of obstacles) {
+        if (isColliding(crate, obstacle)) {
+          crateBlocked = true;
+          break;
+        }
+      }
+
+      // Revert if invalid
+      if (crateBlocked) {
+        crate.x -= dx;
+        crate.y -= dy;
+        state.player.x = prevX;
+        state.player.y = prevY;
+      }
+    }
 
     // World boundaries
-    state.player.x = clamp(
-      state.player.x,
-      0,
-      GAME_WIDTH - state.player.width
-    );
+    state.player.x = clamp(state.player.x, 0, GAME_WIDTH - state.player.width);
 
     state.player.y = clamp(
       state.player.y,
       0,
-      GAME_HEIGHT - state.player.height
+      GAME_HEIGHT - state.player.height,
     );
   }
 
@@ -267,6 +332,6 @@ function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
 }
 
-
 bootGame();
 requestAnimationFrame(gameLoop);
+

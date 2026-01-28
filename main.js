@@ -32,6 +32,17 @@ const GAME_WIDTH = 800;
 const GAME_HEIGHT = 500;
 const PLAYER_SPEED = 150; // pixels per second
 
+// Obstacles
+
+const obstacles = [
+  {
+    x: 300,
+    y: 200,
+    width: 100,
+    height: 40
+  }
+];
+
 
 //Game container (DOM Setup)
 
@@ -82,7 +93,7 @@ Logic to the fine 'world size' in pixels. This way:
 
 game.style.width = GAME_WIDTH + "px";
 game.style.height = GAME_HEIGHT + "px";
-game.style.position = "relative";  // This element becomes a reference point for absolutely positioned children.
+game.style.position = "relative";  
 game.style.background = "#222";
 game.style.margin = "40px auto";
 
@@ -104,63 +115,37 @@ const state = {
 };
 
 
-// Create a render function (bring data → DOM)
-
-  function render() {
-  playerEl.style.width = state.player.width + "px";
-  playerEl.style.height = state.player.height + "px";
-  playerEl.style.left = state.player.x + "px";
-  playerEl.style.top = state.player.y + "px";
-}
-
-
-
 // Creates a player 'dummy' inside game
 
 const playerEl = document.createElement("div");
 playerEl.id = "player";
-playerEl.style.position = "absolute"; // Place player using x,y coordinates
+playerEl.style.position = "absolute";
 playerEl.style.background = "orange";
-
 game.appendChild(playerEl);
-render();
 
-/*
+// Creates obstacle
 
-Why we start with a box?
-Because:
-
-boxes are simple
-collisions are rectangles
-forklifts are rectangles
-walls are rectangles
-DOM works with rectangles
-
-Absolute elements are positioned relative to the nearest positioned ancestor.
-
-game (relative)
- └── player (absolute)
+const obstacleEl = document.createElement("div");
+obstacleEl.style.position = "absolute";
+obstacleEl.style.background = "gray";
+game.appendChild(obstacleEl);
 
 
- This means (0,0) is top-left of the game world
+// Create a render function (bring data → DOM)
 
- ---
+function render() {
+  // Player
+  playerEl.style.width = state.player.width + "px";
+  playerEl.style.height = state.player.height + "px";
+  playerEl.style.left = state.player.x + "px";
+  playerEl.style.top = state.player.y + "px";
 
- Notice game.style.position = "relative";  
- 
- Relative to what?
-    The game element is now positioned relative to itself — but more importantly:
-
-    It tells the browser:
-    “Any child with position: absolute should measure its coordinates from me.”
-
-PAGE (body)
- └── app
-      └── game  ← (relative anchor)
-           └── player (absolute)
-
-
- */
+  // Obstacle
+  obstacleEl.style.width = obstacles[0].width + "px";
+  obstacleEl.style.height = obstacles[0].height + "px";
+  obstacleEl.style.left = obstacles[0].x + "px";
+  obstacleEl.style.top = obstacles[0].y + "px";
+}
 
 
 /*  === World boundaries ===
@@ -169,13 +154,21 @@ in out case game width is 800 px and height = 500 px.
 
 Math.min(max,…) = Do not allow value to be bigger than max
 Math.max(min, …) = Do not allow value to be smaller than min
-
 */
 
 function clamp(value, min, max) {   
   return Math.max(min, Math.min(max, value));
  }
 
+// This causes a collision: if X overlap AND Y overlap if TRUE = Collision
+
+
+function isColliding(a, b) {
+  return (
+    a.x < b.x + b.width && a.x + a.width > b.x && // Is A’s left edge left of B’s right edge?
+    a.y < b.y + b.height && a.y + a.height > b.y
+  );
+}
 
 
 function gameLoop(timestamp) {
@@ -185,40 +178,56 @@ function gameLoop(timestamp) {
     return;
   }
 
-  const deltaTime = (timestamp - lastTime) / 1000;
+  // Delta time in seconds 
+  const deltaTime = (timestamp - lastTime) / 1000;  
   lastTime = timestamp;
 
 
   // Playing block
-if (getGameState() === GAME_STATE.PLAYING) {
+  if (getGameState() === GAME_STATE.PLAYING) {
 
-  // Reset velocity: no keystroke = no movement
-  state.player.vx = 0;
-  state.player.vy = 0;
+    // Reset velocity: no keystroke = no movement
+    state.player.vx = 0;
+    state.player.vy = 0;
 
-  // Input → velocity (intent)
-  if (input.left)  state.player.vx -= PLAYER_SPEED;
-  if (input.right) state.player.vx += PLAYER_SPEED;
-  if (input.up)    state.player.vy -= PLAYER_SPEED;
-  if (input.down)  state.player.vy += PLAYER_SPEED;
+    // Input → velocity (intent)
+    if (input.left)  state.player.vx -= PLAYER_SPEED; // Left is negative like in cartesian plane
+    if (input.right) state.player.vx += PLAYER_SPEED;
+    if (input.up)    state.player.vy -= PLAYER_SPEED;
+    if (input.down)  state.player.vy += PLAYER_SPEED;
 
-  // World boundaries
-  state.player.x = clamp(
-    state.player.x,
-    0,
-    GAME_WIDTH - state.player.width
-  );
-
-  state.player.y = clamp(
-    state.player.y,
-    0,
-    GAME_HEIGHT - state.player.height
-  );
-}
+    const prevX = state.player.x;
+    const prevY = state.player.y;
 
 
+    // This is where movement happens
+    state.player.x += state.player.vx * deltaTime;
+    state.player.y += state.player.vy * deltaTime;
 
-  // Render (visuals)
+    // Collision with obstacles
+    for (const obstacle of obstacles) {
+    if (isColliding(state.player, obstacle)) {
+    state.player.x = prevX;
+    state.player.y = prevY;
+        }
+    }
+
+
+    // World boundaries
+    state.player.x = clamp(
+      state.player.x,
+      0,
+      GAME_WIDTH - state.player.width
+    );
+
+    state.player.y = clamp(
+      state.player.y,
+      0,
+      GAME_HEIGHT - state.player.height
+    );
+  }
+
+  // Render (EVERY FRAME)
   render();
 
   // Schedule next frame
@@ -228,29 +237,3 @@ if (getGameState() === GAME_STATE.PLAYING) {
 
 bootGame();
 requestAnimationFrame(gameLoop);
-
-
-/*
-
-=== Explanation: requestAnimationFrame(gameLoop); ====
-
-requestAnimationFrame is a BROWSER function and its not defined on this code. Its like console.log
-"Hey browser, next time you’re about to draw a frame, please run this function first.” or 
-"Before your next screen repaint, run gameLoop.”
-
-        Browser is about to refresh screen
-            ↓
-        Browser runs gameLoop()
-            ↓
-        Your code updates positions + styles
-            ↓
-        Browser paints the frame
-
-
-
-gameLoop runs ≈ 60 times per second if your monitor refreshes at 60Hz or 144 if its 144 Hz, etc
-So we're basically setting up the game to obey time, not frames. 
-
-*/
-
-

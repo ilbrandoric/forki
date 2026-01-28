@@ -1,11 +1,39 @@
 console.log("Forki booting...");
 
 
+
+// Game state variables
+const GAME_STATE = {
+  BOOT: "boot",
+  PLAYING: "playing",
+  PAUSED: "paused"
+};
+
+let gameState = GAME_STATE.BOOT;
+
+function setGameState(newState) {
+  console.log("Game state:", gameState, "→", newState);
+  gameState = newState;
+}
+
+function getGameState() {
+  return gameState;
+}
+
+function bootGame() {
+  setGameState(GAME_STATE.PLAYING);
+}
+
+// Stores when the previous frame happened
+let lastTime = 0;
+
 // Game constants
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 500;
+const PLAYER_SPEED = 150; // pixels per second
 
-//Game container
+
+//Game container (DOM Setup)
 
 const app = document.getElementById("app");
 const game = document.createElement("div");
@@ -13,6 +41,30 @@ const game = document.createElement("div");
 // Sets <div id="game"> to the above created div
 //This is also the 'world' for JS
 game.id = "game";
+
+
+// Is a key pressed? (Movement intent NOT movement itself)
+
+const input = {
+  left: false,
+  right: false,
+  up: false,
+  down: false
+};
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") input.left = true;
+  if (e.key === "ArrowRight") input.right = true;
+  if (e.key === "ArrowUp") input.up = true;
+  if (e.key === "ArrowDown") input.down = true;
+});
+
+window.addEventListener("keyup", (e) => {
+  if (e.key === "ArrowLeft") input.left = false;
+  if (e.key === "ArrowRight") input.right = false;
+  if (e.key === "ArrowUp") input.up = false;
+  if (e.key === "ArrowDown") input.down = false;
+});
 
 
 /*
@@ -45,9 +97,12 @@ const state = {
     x: 100,
     y: 100,
     width: 40,
-    height: 40
+    height: 40,
+    vx: 0,       //Velocity value
+    vy: 0
   }
 };
+
 
 // Create a render function (bring data → DOM)
 
@@ -106,5 +161,70 @@ PAGE (body)
 
 
  */
+
+
+
+
+function gameLoop(timestamp) {
+  if (lastTime === 0) {
+    lastTime = timestamp;
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  const deltaTime = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+
+  // Playing block
+  if (getGameState() === GAME_STATE.PLAYING) {
+
+  // No keyboard input or no input = no velocity
+  state.player.vx = 0;
+  state.player.vy = 0;
+
+  if (input.left)  state.player.vx -= PLAYER_SPEED;  // Left = -x because of a cartisian plane reference
+  if (input.right) state.player.vx += PLAYER_SPEED;
+  if (input.up)    state.player.vy -= PLAYER_SPEED;
+  if (input.down)  state.player.vy += PLAYER_SPEED;
+
+//   console.log("vx:", state.player.vx, "vy:", state.player.vy);
+}
+
+
+  // Render (visuals)
+  render();
+
+  // Schedule next frame
+  requestAnimationFrame(gameLoop);
+}
+
+
+bootGame();
+requestAnimationFrame(gameLoop);
+
+
+/*
+
+=== Explanation: requestAnimationFrame(gameLoop); ====
+
+requestAnimationFrame is a BROWSER function and its not defined on this code. Its like console.log
+"Hey browser, next time you’re about to draw a frame, please run this function first.” or 
+"Before your next screen repaint, run gameLoop.”
+
+        Browser is about to refresh screen
+            ↓
+        Browser runs gameLoop()
+            ↓
+        Your code updates positions + styles
+            ↓
+        Browser paints the frame
+
+
+
+gameLoop runs ≈ 60 times per second if your monitor refreshes at 60Hz or 144 if its 144 Hz, etc
+So we're basically setting up the game to obey time, not frames. 
+
+*/
 
 

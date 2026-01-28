@@ -101,6 +101,8 @@ game.style.margin = "40px auto";
 app.appendChild(game);
 
 
+/* === World state (authoritative game data; logic, not visuals) === */
+
 // Create a game state object (data position)
 
 const state = {
@@ -114,6 +116,19 @@ const state = {
   }
 };
 
+
+// Crate data (STATE)
+
+const crate = {
+  x: 100,
+  y: 200,
+  width: 40,
+  height: 40
+};
+
+
+
+// ==== Defines objects ====
 
 // Creates a player 'dummy' inside game
 
@@ -130,6 +145,17 @@ obstacleEl.style.position = "absolute";
 obstacleEl.style.background = "gray";
 game.appendChild(obstacleEl);
 
+// Creates crate 
+
+const crateEl = document.createElement("div");
+crateEl.style.position = "absolute";
+crateEl.style.background = "brown";
+game.appendChild(crateEl);
+
+
+
+
+// === Renders objects visually inside world ===
 
 // Create a render function (bring data → DOM)
 
@@ -145,6 +171,13 @@ function render() {
   obstacleEl.style.height = obstacles[0].height + "px";
   obstacleEl.style.left = obstacles[0].x + "px";
   obstacleEl.style.top = obstacles[0].y + "px";
+
+  // Crate
+crateEl.style.width = crate.width + "px";
+crateEl.style.height = crate.height + "px";
+crateEl.style.left = crate.x + "px";
+crateEl.style.top = crate.y + "px";
+
 }
 
 

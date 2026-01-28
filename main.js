@@ -163,6 +163,19 @@ PAGE (body)
  */
 
 
+/*  === World boundaries ===
+ clamp explained: (where the player is at, min = world begins here, max = world ends here) 
+in out case game width is 800 px and height = 500 px.
+
+Math.min(max,…) = Do not allow value to be bigger than max
+Math.max(min, …) = Do not allow value to be smaller than min
+
+*/
+
+function clamp(value, min, max) {   
+  return Math.max(min, Math.min(max, value));
+ }
+
 
 
 function gameLoop(timestamp) {
@@ -177,19 +190,32 @@ function gameLoop(timestamp) {
 
 
   // Playing block
-  if (getGameState() === GAME_STATE.PLAYING) {
+if (getGameState() === GAME_STATE.PLAYING) {
 
-  // No keyboard input or no input = no velocity
+  // Reset velocity: no keystroke = no movement
   state.player.vx = 0;
   state.player.vy = 0;
 
-  if (input.left)  state.player.vx -= PLAYER_SPEED;  // Left = -x because of a cartisian plane reference
+  // Input → velocity (intent)
+  if (input.left)  state.player.vx -= PLAYER_SPEED;
   if (input.right) state.player.vx += PLAYER_SPEED;
   if (input.up)    state.player.vy -= PLAYER_SPEED;
   if (input.down)  state.player.vy += PLAYER_SPEED;
 
-//   console.log("vx:", state.player.vx, "vy:", state.player.vy);
+  // World boundaries
+  state.player.x = clamp(
+    state.player.x,
+    0,
+    GAME_WIDTH - state.player.width
+  );
+
+  state.player.y = clamp(
+    state.player.y,
+    0,
+    GAME_HEIGHT - state.player.height
+  );
 }
+
 
 
   // Render (visuals)

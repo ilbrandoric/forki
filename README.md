@@ -3,6 +3,8 @@
 ## 1. Project Overview (What this is)
 This is a small browser game built in plain JavaScript with no frameworks. The DOM is the game world, and everything is intentionally simple and explicit so it is easy to read and learn from.
 
+*For fast immersion, do checkout the [audio-guide](documentation/reference-material/audio-guide.m4a).
+
 ## 2. How to Run the Project
 - Open [index.html](index.html) in a browser.
 - No build step, no install, no dependencies.
@@ -29,6 +31,9 @@ At a high level:
   - Event‑driven updates (player).
   - Interval‑driven updates (obstacles, timer).
 
+  ![DOm Game Anatomy](documentation/reference-material/dom-game-anatomy.png)
+
+
 ## 5. Navigation Guide (Where to read next)
 For deeper explanations, start here:
 - [documentation/architecture-overview.md](documentation/architecture-overview.md)
@@ -41,5 +46,9 @@ For deeper explanations, start here:
 - [documentation/entities/persons.md](documentation/entities/persons.md)
 - [documentation/entities/cones.md](documentation/entities/cones.md)
 
-## 6. Philosophy & Constraints (Important)
-This project avoids frameworks on purpose. Clarity is more important than abstraction, and there is no hidden magic, no engines, and no build step. Everything is visible and traceable in the repo so it can be read and understood, not just played.
+## 6. Additional resources
+Check out the documentation and reference materials for deep comprehension. 
+
+- [reference material](documentation/reference-material/)
+
+

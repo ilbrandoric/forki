@@ -3,7 +3,7 @@
 ## 1. Project Overview (What this is)
 This is a small browser game built in plain JavaScript with no frameworks. The DOM is the game world, and everything is intentionally simple and explicit so it is easy to read and learn from.
 
-*For fast immersion, do checkout the [audio-guide](documentation/reference-material/audio-guide.m4a).
+*For fast immersion, do checkout the [audio-guide](documentation/reference-material/audio-guide.m4a) and [how it comes to life](documentation/how-it-comes-to-life.md) sources. 
 
 ## 2. How to Run the Project
 - Open [index.html](index.html) in a browser.
@@ -47,8 +47,9 @@ For deeper explanations, start here:
 - [documentation/entities/cones.md](documentation/entities/cones.md)
 
 ## 6. Additional resources
-Check out the documentation and reference materials for deep comprehension. 
+Check out the reference materials for deep comprehension. 
 
 - [reference material](documentation/reference-material/)
+- [game architecture](documentation/reference-material/game-architecture.pdf)
 
 

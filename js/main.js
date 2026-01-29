@@ -61,12 +61,17 @@ export function canMove(type, nextX, nextY, width, height) {
 const bgm = new Audio();
 bgm.src = "assets/audio/bgm-sheherazade.ogg";
 bgm.loop = true;
-bgm.volume = 0.5;
+bgm.volume = 0.05;
 
-let isMuted = false;
+let isMuted = true;
 let lastGameState = "start"
 
 const audioToggleBtn = document.querySelector("#audio-toggle-btn")
+
+// Initial visual state (default muted)
+audioToggleBtn.textContent = "🔇"
+bgm.pause()
+
 
 // Toggle mute state
 audioToggleBtn.addEventListener("click", () => {

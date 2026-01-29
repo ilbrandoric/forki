@@ -6,7 +6,8 @@ This is a small browser game built in plain JavaScript with no frameworks. The D
 *For fast immersion, do checkout the [audio-guide](documentation/reference-material/audio-guide.m4a) and [how it comes to life](documentation/how-it-comes-to-life.md) sources. 
 
 ## 2. How to Run the Project
-- Open [index.html](index.html) in a browser.
+- Open [https://ilbrandoric.github.io/forki/](https://ilbrandoric.github.io/forki/)
+- Or clone and open [index.html](index.html) in a browser.
 - No build step, no install, no dependencies.
 
 ## 3. Repository Structure (High Level)

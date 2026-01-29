@@ -40,12 +40,12 @@ For deeper explanations, start here:
 - [documentation/architecture-overview.md](documentation/architecture-overview.md)
 - [documentation/boot-flow.md](documentation/boot-flow.md)
 - [documentation/state-machine.md](documentation/state-machine.md)
-- [documentation/world-model.md](documentation/world-model.md)
-- [documentation/entities/player.md](documentation/entities/player.md)
-- [documentation/entities/box.md](documentation/entities/box.md)
-- [documentation/entities/rat.md](documentation/entities/rat.md)
-- [documentation/entities/persons.md](documentation/entities/persons.md)
-- [documentation/entities/cones.md](documentation/entities/cones.md)
+- [documentation/entity-model.md](documentation/entity-model.md)
+- [documentation/collision-model.md](documentation/collision-model.md)
+- [documentation/timing-model.md](documentation/timing-model.md)
+- [documentation/reset-logic.md](documentation/reset-logic.md)
+- [documentation/responsibility-map.md](documentation/responsibility-map.md)
+- [documentation/data-flow.md](documentation/data-flow.md)
 
 ## 6. Additional resources
 Check out the reference materials for deep comprehension. 

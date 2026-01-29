@@ -1,373 +1,642 @@
-# State Machine & Lifecycle Documentation
+# State Machine & Lifecycle Documentation (Runtime Control Architecture)
 
-## 1. The State List (Canonical)
+## Purpose
 
-The game has exactly three states. This is the single source of truth:
+This document explains how **state controls what systems are allowed to run, when they run, and when they must stop** in the Forki game.
 
-| State | Purpose | Visible Screen | What Can Run | What Is Blocked |
-|-------|---------|----------------|-------------|-----------------|
-| `"start"` | Waiting for player to begin | `#start-screen` | Keyboard listeners register (dormant), Audio system monitors | Obstacles do not spawn, Timer does not count, Player cannot move, Persons do not move |
-| `"playing"` | Active gameplay | `#game-screen` | All systems (player movement, obstacles, timer countdown, collision detection) | None – everything runs |
-| `"gameOver"` | Game has ended (win or loss) | `#game-over-screen` | Audio system monitors | Obstacles stop, Timer stops, Player input is ignored, Nothing new spawns |
-
-**Key insight**: State determines *visibility* (which screen shows) and *behavior* (which systems are allowed to run).
+State is not just a variable — it is **the traffic light of the entire game**. Every moving system obeys it.
 
 ---
 
-## 2. State Transitions (Lifecycle Flow)
+## The Three States (Canonical)
 
-The game follows a simple cycle:
+The game has exactly three states. No more, no less.
+
+| State | Purpose | Visible Screen | Systems Running | Systems Blocked |
+|-------|---------|----------------|-----------------|-----------------|
+| **start** | Initial state before game begins | Start screen (`#start-screen`) | None | All gameplay systems (timer, obstacles, input) |
+| **playing** | Active gameplay | Game screen (`#game-screen`) | All (timer countdown, obstacle movement, player input, collision detection) | None |
+| **gameOver** | Game ended (win or loss) | Game over screen (`#game-over-screen`) | None | All gameplay systems |
+
+**Source of Truth**: `js/game-state.js` — the `gameState` variable and `getGameState()` function
+
+---
+
+## State Transitions (Lifecycle Flow)
+
+### Transition 1: `start` → `playing`
+
+**Trigger**: User clicks "Start Game" button (`#start-btn`)
+
+**What Happens**:
+1. Start screen becomes hidden
+2. Game screen becomes visible
+3. All entity positions reset to spawn values:
+   - Player resets to (0, 0) via `resetPlayer()`
+   - Box resets to (100, 100) via `resetBox()`
+   - Score resets to 0 via `resetScore()`
+   - Goal flag resets to allow new win via `resetGoal()`
+   - Timer resets to 30 seconds via `resetTimer()`
+4. Rat spawns via `spawnRat()`
+5. Obstacles initialize (cones and persons placed randomly)
+6. State variable changes to `"playing"`
+
+**Side Effects**:
+- Background music starts (if not muted)
+- Timer begins counting down
+- Obstacles begin moving
+- Input is now accepted
+
+**What Must Not Happen**:
+- No entity positions can persist from previous round
+- No stale collision flags can remain
+- No obstacles from previous round can exist
+
+**Source**: [game-state.js](../js/game-state.js#L46-L62)
+
+---
+
+### Transition 2: `playing` → `gameOver`
+
+**Trigger**: One of four terminal conditions:
+1. Timer reaches 0 (via `timer.js`)
+2. Box reaches goal (via `goal.js`)
+3. Player collides with person (via `obstacles.js`)
+4. Player collides with rat (via `obstacles.js`)
+5. Box collides with person (via `obstacles.js`)
+
+**What Happens**:
+1. Triggering system calls `triggerGameOver(reason)`
+2. Game screen becomes hidden
+3. Game over screen becomes visible
+4. Result text displays the reason (e.g., "You won!" or "Time's up!")
+5. Rat cleanup via `cleanupRat()`
+6. State variable changes to `"gameOver"`
+
+**Side Effects**:
+- Background music stops and resets to start
+- Timer interval stops via `clearInterval()`
+- Obstacle loop stops processing movements
+- Input is now ignored (player keypress events return early)
+- Cones and persons are removed from DOM in next interval tick
+
+**What Must Not Happen**:
+- Multiple game-over triggers from same event (prevented by `failureTriggered` guard in `obstacles.js`)
+- Systems continuing to run after game over
+- Score or timer updating after game ends
+
+**Source**: [game-state.js](../js/game-state.js#L65-L68)
+
+---
+
+### Transition 3: `gameOver` → `start` (via restart)
+
+**Trigger**: User clicks "Restart" button (`#restart-btn`)
+
+**What Happens**:
+1. Entire page reloads via `window.location.reload()`
+
+**Why Full Reload**:
+- Ensures all module-level state is reset
+- Prevents any residual state bugs
+- Simple and reliable cleanup strategy
+
+**Source**: [game-state.js](../js/game-state.js#L71-L73)
+
+---
+
+## State Transition Diagram
 
 ```
-start
-  ↓
-[Player clicks "Start" button]
-  ↓
-playing
-  ↓
-[Box reaches goal OR time runs out OR person touches player]
-  ↓
-gameOver
-  ↓
-[Player clicks "Restart" button]
-  ↓
-[Page reloads]
-  ↓
-start
-  ↓
-...
+    ┌─────────┐
+    │  start  │  (Initial state, waiting for user)
+    └─────────┘
+         │
+         │ User clicks "Start Game"
+         │ → Reset all entities
+         │ → Spawn obstacles and rat
+         ↓
+    ┌─────────┐
+    │ playing │  (Active gameplay, all systems running)
+    └─────────┘
+         │
+         │ Terminal condition triggered:
+         │ • Timer expires
+         │ • Box reaches goal (win)
+         │ • Collision with hazard (lose)
+         │
+         ↓
+    ┌──────────┐
+    │ gameOver │  (Game ended, showing result)
+    └──────────┘
+         │
+         │ User clicks "Restart"
+         │ → Full page reload
+         │
+         └───────→ (back to start)
 ```
 
-### Transition: start → playing
+---
 
-**Trigger**: Player clicks the "Start" button (registered in game-state.js)
+## System Gating (Who Obeys State)
 
-**Conceptual event**: `showScreen("playing")` is called
+Every system that performs actions must check state. Here's how each system enforces state-based behavior:
 
-**Side effects (in order)**:
-1. All reset functions are called:
-   - `resetPlayer()` — player position to (0, 0)
-   - `resetBox()` — box position to (100, 100)
-   - `resetScore()` — score to 0
-   - `resetGoal()` — goal flag to false (can be triggered again)
-   - `resetTimer()` — timer state prepared for countdown
-2. Rat is spawned onto the game area
-3. Game state is changed to `"playing"`
-4. `#game-screen` becomes visible, `#start-screen` is hidden
-5. Audio system detects state change and plays background music (if not muted)
+### Timer (`timer.js`)
 
-**Must NOT happen**:
-- Cones or persons should not be created (guarded by `conesInitialized` and `personsInitialized` flags)
-- Old entities from a previous game should not persist
-- Timer should not begin counting until state is actually `"playing"`
+**How It Checks State**:
+```javascript
+const state = getGameState()
+if (state !== "playing") {
+  if (state === "gameOver") {
+    clearInterval(timerIntervalId)
+  }
+  return
+}
+```
 
-**Why this order matters**: Resets happen *before* state changes so that systems read clean state when they wake up.
+**Behavior**:
+- Interval runs continuously from module load
+- Only decrements time when `state === "playing"`
+- Returns early in all other states
+- Stops interval permanently on `gameOver` via `clearInterval()`
+
+**State Violation Would Break**: Timer would count down during start screen or after game over
+
+**Pattern**: Loop-driven with early return guard
+
+**Source**: [timer.js](../js/timer.js#L36-L43)
 
 ---
 
-### Transition: playing → gameOver
+### Obstacles (`obstacles.js`)
 
-**Trigger**: One of three events
-1. Box reaches the goal (checked by goal.js after player movement)
-2. Timer reaches 0 (checked by timer.js in its interval)
-3. Person collides with player or box (checked by obstacles.js in its interval)
+**How It Checks State**:
+```javascript
+const currentState = getGameState()
+if (currentState !== "playing") {
+  // Cleanup logic for cones and persons
+  return
+}
+```
 
-**Conceptual event**: `triggerGameOver(reason)` is called (from goal.js, timer.js, or obstacles.js)
+**Behavior**:
+- Interval runs continuously (50ms tick rate)
+- Only processes movements when `state === "playing"`
+- Performs cleanup when exiting `"playing"` state:
+  - Removes cones from DOM
+  - Removes persons from DOM
+  - Resets initialization guards
+- Initialization happens only once per round via guards (`conesInitialized`, `personsInitialized`)
 
-**Side effects (in order)**:
-1. Result text is set to the provided reason ("You won!", "Time's up!", or "Game Over!")
-2. `showScreen("gameOver")` is called
-3. Rat is cleaned up (removed from DOM)
-4. Game state is changed to `"gameOver"`
-5. `#game-over-screen` becomes visible, `#game-screen` is hidden
-6. Audio system detects state change and pauses background music
+**State Violation Would Break**: 
+- Persons would move during start or game over screens
+- Collisions would trigger on wrong screens
+- Obstacles would not reset between rounds
 
-**Must NOT happen**:
-- Obstacles should not continue moving (guarded by state check in obstacles.js)
-- Timer should not continue counting (guarded by state check in timer.js)
-- Player input should not affect the game (keyboard listener still active but game state blocks meaningful behavior)
-- Goal flag reset should not happen (carry over to next round)
+**Pattern**: Loop-driven with early return guard and cleanup logic
 
-**Why this structure**: The game-over screen displays until the player clicks restart, giving them time to see the result.
-
----
-
-### Transition: gameOver → start
-
-**Trigger**: Player clicks the "Restart" button (registered in game-state.js)
-
-**Conceptual event**: `window.location.reload()` is called
-
-**What happens**:
-- The entire page reloads from scratch
-- All JavaScript modules run again
-- Game state is initialized to `"start"` again
-- The boot flow repeats
-
-**Why this design**: Instead of trying to reset every system manually, a full reload guarantees a clean slate. This is simpler and safer than partial cleanup.
+**Source**: [obstacles.js](../js/obstacles.js#L224-L245)
 
 ---
 
-## 3. System Gating (Who Obeys State)
+### Player (`player.js`)
 
-Every major system checks state before running behavior. Here is how each system respects the state machine:
+**How It Checks State**:
+- Player does NOT explicitly check state
+- Input is accepted at all times, but only visible on game screen
+- Movement happens regardless of state (architectural choice)
 
-### Player (player.js)
+**Behavior**:
+- Event-driven (keydown listener)
+- Responds to arrow keys immediately
+- Relies on screen visibility for functional state gating
 
-**How it checks state**: Keyboard listener is always active, but movement checks depend on game state indirectly through collision blocking and state-based behavior.
+**Why This Works**:
+- Player element only visible during `"playing"` state
+- User cannot see or interact with player during other states
+- Invisible movement has no gameplay impact
+- Goal and collision checks only matter when obstacles and goal are active
 
-**State behavior**:
-- `"start"` and `"gameOver"`: Keyboard input is registered but cannot cause meaningful movement (position changes are blocked)
-- `"playing"`: Keyboard input causes movement and collision checks
+**State Violation Would Break**: 
+- Nothing (movement during wrong state is harmless due to screen isolation)
+- This is an example of **implicit state gating via visibility**
 
-**If state is ignored**: Player could move on the start screen or after game over, breaking the visual model that the game is frozen until you click start.
+**Pattern**: Event-driven without explicit state check (screen visibility provides isolation)
 
-**Type**: Event-driven (keyboard input)
-
----
-
-### Obstacles (obstacles.js)
-
-**How it checks state**: The 50ms interval loop contains an explicit state check at the top: `if (currentState !== "playing") { cleanup and return; }`
-
-**State behavior**:
-- `"start"` and `"gameOver"`: Interval runs but returns early; cones and persons are cleaned up and removed from DOM
-- `"playing"`: After state check passes, cones and persons are created (once) and updated every 50ms
-
-**If state is ignored**: Cones and persons would appear on the start screen, move during game over, and behave unpredictably across rounds.
-
-**Type**: Loop-driven (50ms interval) with state gating
+**Source**: [player.js](../js/player.js#L57-L117)
 
 ---
 
-### Timer (timer.js)
+### Background Music (`main.js`)
 
-**How it checks state**: The 1000ms interval loop contains an explicit state check: `if (currentState !== "playing") { return; }`
+**How It Checks State**:
+```javascript
+const currentState = getGameState()
+if (lastGameState !== "playing" && currentState === "playing") {
+  if (!isMuted) {
+    bgm.play()
+  }
+}
+if (lastGameState === "playing" && currentState !== "playing") {
+  bgm.pause()
+  bgm.currentTime = 0
+}
+```
 
-**State behavior**:
-- `"start"` and `"gameOver"`: Interval runs but returns early before decrementing
-- `"playing"`: Time decrements once per second and updates display
+**Behavior**:
+- Interval runs continuously (100ms tick rate)
+- Monitors state transitions
+- Starts music when entering `"playing"`
+- Stops music when leaving `"playing"`
+- Respects mute toggle regardless of state
 
-**If state is ignored**: Timer would count down during the start screen and after game over, making the time meaningless and breaking win/loss conditions.
+**State Violation Would Break**: Music would play during wrong screens
 
-**Type**: Loop-driven (1000ms interval) with state gating
+**Pattern**: Loop-driven with transition detection
 
----
-
-### Goal (goal.js)
-
-**How it checks state**: Goal checking happens inside `checkGoal()`, which is called by player.js. There is no explicit state check *inside* goal.js, but goal.js relies on being called only when movement is allowed.
-
-**State behavior**:
-- `"start"` and `"gameOver"`: `checkGoal()` is not called (because player is not moving)
-- `"playing"`: `checkGoal()` is called after every player movement
-
-**If state is ignored**: Win conditions could trigger on the start screen or after game over, breaking the game flow.
-
-**Type**: External event (called by player.js)
-
----
-
-### Score (score.js)
-
-**How it checks state**: Score checking happens inside `incrementScore()`, which is called by goal.js. Score has no explicit state check because it only runs when goal is reached, which only happens during play.
-
-**State behavior**:
-- All states: Score can only change when `incrementScore()` is called by goal.js
-- Reset happens during state transition to `"playing"`
-
-**If state is ignored**: Score could increment at the wrong time or persist between games unexpectedly.
-
-**Type**: External event (called by goal.js)
+**Source**: [main.js](../js/main.js#L91-L103)
 
 ---
 
-### Audio (main.js)
+### Score (`score.js`)
 
-**How it checks state**: The audio system has an explicit state check in its monitoring loop: `if (lastGameState !== "playing" && currentState === "playing")` and `if (lastGameState === "playing" && currentState !== "playing")`
+**How It Checks State**:
+- Score does NOT check state directly
+- Only incremented when `incrementScore()` is called
+- Only called by `goal.js` during `"playing"` state (indirect enforcement)
 
-**State behavior**:
-- `"start"`: Music is paused
-- `"playing"`: Music plays (if not muted)
-- `"gameOver"`: Music is paused
+**Behavior**:
+- Passive system (no autonomous updates)
+- Updated only via external function call
+- Relies on caller to enforce state
 
-**If state is ignored**: Music would play during the start screen and game over, breaking immersion.
+**Why This Works**:
+- Goal checks only happen during `"playing"`
+- Goal is only visible and active on game screen
+- Reset function called during state transition to `"playing"`
 
-**Type**: Loop-driven (100ms monitor loop) with state transitions
+**State Violation Would Break**: 
+- If `incrementScore()` were called during wrong state, score would update incorrectly
+- This is prevented by goal system's state isolation, not score itself
+
+**Pattern**: Event-driven (external invocation) with no explicit state check
+
+**Source**: [score.js](../js/score.js#L31-L34)
 
 ---
 
-## 4. State as a Safety Mechanism (Why This Design Exists)
+### Goal (`goal.js`)
 
-This game uses a **state-gating architecture** instead of simpler approaches. Understanding why prevents dangerous refactors:
+**How It Checks State**:
+- Goal does NOT check state directly
+- Only checked when `checkGoal()` is called by player
+- Player movement only visible during `"playing"` state (indirect enforcement)
 
-### Why Intervals Are Always Running (Not Started/Stopped)
+**Behavior**:
+- Passive system (no autonomous updates)
+- Collision check triggered by player movement
+- Uses `goalReached` flag to prevent repeated triggers
+- Flag resets during state transition to `"playing"`
 
-**Dangerous approach**: Start and stop intervals when entering/exiting play state.
+**Why This Works**:
+- Player is only visible and can only move meaningfully during `"playing"`
+- Goal element only visible on game screen
+- Even if checked during wrong state, no visual or gameplay consequence
 
-**Why it doesn't work here**:
-- Intervals are registered during module load, before state exists
-- Starting/stopping intervals requires keeping track of interval IDs globally
-- It's easy to accidentally leave an old interval running or fail to clear it
-- Testing and debugging become harder (state is scattered across code)
+**State Violation Would Break**: 
+- If goal check happened during `"start"` or `"gameOver"`, premature win condition
+- Prevented by screen visibility isolation
 
-**Better approach** (used here): Intervals are registered once and run forever. Each interval checks state at the top and returns early if state is wrong.
+**Pattern**: Event-driven (external invocation) with flag-based idempotency
 
-**Benefit**: State is the single authority. Intervals don't need to manage their own lifecycle.
+**Source**: [goal.js](../js/goal.js#L44-L51)
+
+---
+
+### Box (`box.js`)
+
+**How It Checks State**:
+- Box does NOT check state directly
+- Only moves when pushed by player
+- Player interaction only meaningful during `"playing"` (indirect enforcement)
+
+**Behavior**:
+- Completely passive (only responds to player push)
+- Movement and collision checks delegated to player
+- Position resets during state transition to `"playing"`
+
+**Why This Works**:
+- Box cannot move autonomously
+- Player is only active during `"playing"`
+- Screen visibility provides functional isolation
+
+**State Violation Would Break**: 
+- If player could push box during wrong state, position would change incorrectly
+- Prevented by player visibility and state isolation
+
+**Pattern**: Event-driven (external invocation) with no explicit state check
+
+**Source**: [box.js](../js/box.js#L67-L115)
+
+---
+
+## Summary: State Gating Patterns
+
+| System | Pattern | State Check Method | Gating Mechanism |
+|--------|---------|-------------------|------------------|
+| **Timer** | Loop-driven | Explicit (`getGameState()`) | Early return + `clearInterval()` |
+| **Obstacles** | Loop-driven | Explicit (`getGameState()`) | Early return + cleanup |
+| **Background Music** | Loop-driven | Explicit (`getGameState()`) | Transition detection |
+| **Player** | Event-driven | Implicit (screen visibility) | DOM visibility isolation |
+| **Score** | Event-driven | Implicit (via caller) | External enforcement |
+| **Goal** | Event-driven | Implicit (via caller + screen) | External enforcement + visibility |
+| **Box** | Event-driven | Implicit (via player) | External enforcement |
+
+**Two Philosophies**:
+1. **Explicit Gating**: Systems check state themselves and return early
+2. **Implicit Gating**: Systems rely on screen visibility and external callers
+
+Both are valid. The choice depends on system autonomy:
+- Autonomous systems (timers, obstacles) → Explicit checks
+- Passive systems (entities) → Implicit isolation via visibility
+
+---
+
+## State as a Safety Mechanism (Why This Design Exists)
+
+### Why Intervals Run Forever
+
+**Design**: Timers and obstacle loops use `setInterval()` that runs from module load until page unload.
+
+**Reason**:
+- Simplifies lifecycle management (no need to start/stop intervals)
+- State acts as gate, not switch
+- Prevents timing bugs from interval restart
+- Early return is cheaper than stopping/restarting
+
+**Alternative (Not Used)**: Start interval on `"playing"`, stop on `"gameOver"`
+- More complex (start/stop management)
+- Risk of interval not restarting properly
+- Risk of multiple intervals running (if restart bug)
 
 ---
 
 ### Why Behavior Is Blocked Instead of Destroyed
 
-**Dangerous approach**: Delete obstacles when state changes, recreate them when playing.
+**Design**: Entities exist in DOM at all times. State controls whether they act.
 
-**Why it doesn't work here**:
-- Cleanup errors can leave DOM elements behind
-- Recreating entities requires resetting all their state perfectly
-- It's easy to forget to update one property during cleanup
+**Reason**:
+- Initialization is expensive (random placement, collision checks)
+- Destruction/recreation creates garbage collection overhead
+- State transition can fail mid-creation
+- Reset functions are simpler than recreate functions
 
-**Better approach** (used here): Obstacles are created and kept in the DOM. They are hidden (DOM is not modified) and marked for cleanup when state changes, then cleaned up lazily in the next interval loop.
-
-**Benefit**: Simpler cleanup logic and less risk of half-cleaned states.
-
----
-
-### Why Resets Are Centralized (Not Scattered)
-
-**Dangerous approach**: Have each system reset itself when state changes.
-
-**Why it doesn't work here**:
-- Multiple systems need to be reset in a specific order
-- Systems might forget to reset or reset incompletely
-- Reset logic scattered across files is hard to understand
-- Easy to accidentally reset something twice or not at all
-
-**Better approach** (used here): All resets are called from one place: `showScreen("playing")` in game-state.js.
-
-**Benefit**: Reset order is explicit and can be debugged in one location.
+**Alternative (Not Used)**: Destroy entities on `"gameOver"`, recreate on `"playing"`
+- More memory efficient (minor)
+- More error-prone (creation can fail)
+- Harder to debug (entities don't exist to inspect)
 
 ---
 
-### Why State Is Checked Everywhere (Not Just at Entry)
+### Why Resets Are Centralized
 
-**Dangerous approach**: Check state only once at the start of an interval, trust systems afterward.
+**Design**: All reset functions called from `game-state.js` during transition to `"playing"`.
 
-**Why it doesn't work here**:
-- A system might take multiple steps; state could change mid-execution
-- Systems depend on state being true when they access other systems
-- Code becomes fragile if state can change unexpectedly
+**Reason**:
+- Single source of truth for "what resets when"
+- Impossible to forget to reset a system
+- Easy to see full reset sequence in one place
+- State transition owns side effects
 
-**Better approach** (used here): Every system checks state before behavior. Interval loops check at the top. Event handlers assume state is valid (because they're only called during play).
+**Location**: [game-state.js](../js/game-state.js#L46-L62) `showScreen("playing")` block
 
-**Benefit**: No race conditions or surprise state changes mid-operation.
+**Alternative (Not Used)**: Each system resets itself when detecting state change
+- Distributed logic (harder to reason about)
+- Risk of systems missing state change detection
+- Harder to guarantee reset order
 
 ---
 
-## 5. Common State Bugs (Educational Guardrails)
+### Why State Is Checked Everywhere
 
-Understanding these failure modes prevents Copilot from making the same mistakes:
+**Design**: Systems that run continuously check state in every iteration.
+
+**Reason**:
+- State can change at any moment
+- Prevents race conditions (state change mid-operation)
+- Clear, explicit guard at function entry
+- Easy to verify correctness (one check per loop)
+
+**Pattern**:
+```javascript
+setInterval(() => {
+  if (getGameState() !== "playing") return
+  // Do work
+}, 50)
+```
+
+**Alternative (Not Used)**: Check state once, assume it doesn't change
+- Faster (micro-optimization)
+- Dangerous (state can change mid-operation)
+- Hard to debug (stale state assumptions)
+
+---
+
+## Common State Bugs (Educational Guardrails)
 
 ### Bug 1: Adding Logic That Ignores State
 
-**The mistake**:
-```
-A new system is added that runs an interval without checking state.
-It updates the DOM or game logic regardless of state.
+**Example**:
+```javascript
+// BAD: This runs in all states
+setInterval(() => {
+  moveEnemy()
+}, 100)
 ```
 
-**Why it's dangerous**: The new system runs during start, playing, and game over. This breaks the visual model (things move when they shouldn't) and can interfere with UI.
-
-**How to avoid**: Every interval loop must check `getGameState()` at the top and return early if state is not `"playing"`.
-
-**Correct pattern**:
-```
+**Fix**:
+```javascript
+// GOOD: This only runs during "playing"
 setInterval(() => {
   if (getGameState() !== "playing") return
-  // system behavior here
-}, 50)
+  moveEnemy()
+}, 100)
 ```
+
+**Why Dangerous**: Enemy would move during start screen and after game over.
 
 ---
 
 ### Bug 2: Running Logic in Multiple States
 
-**The mistake**:
-```
-A system checks state but is allowed to run in multiple states.
-For example: if (state === "playing" || state === "start") { ... }
+**Example**:
+```javascript
+// BAD: This runs in both "playing" and "paused"
+if (getGameState() === "playing" || getGameState() === "paused") {
+  updateUI()
+}
 ```
 
-**Why it's dangerous**: The system's behavior becomes state-dependent in a way that's hard to trace. Different states require different behavior, and mixing states creates bugs.
+**Fix**:
+```javascript
+// GOOD: This only runs in one specific state
+if (getGameState() === "playing") {
+  updateUI()
+}
+```
 
-**How to avoid**: Systems should run in only one state: `"playing"`. If a system must run in multiple states, document why and make the logic explicit.
+**Why Dangerous**: Behavior becomes unpredictable across states. State should be mutually exclusive.
 
 ---
 
 ### Bug 3: Resetting Outside Transitions
 
-**The mistake**:
-```
-A system resets itself in its own code.
-For example: player.js calls resetPlayer() in some event handler.
+**Example**:
+```javascript
+// BAD: Resetting in system's own loop
+setInterval(() => {
+  if (getGameState() === "playing") {
+    resetTimer() // Don't do this
+    updateTimer()
+  }
+}, 1000)
 ```
 
-**Why it's dangerous**: Resets become scattered across files. Multiple systems reset in wrong order. A new system might be created before an old one is reset, causing duplicates or conflicts.
+**Fix**:
+```javascript
+// GOOD: Resets happen only in game-state.js during transition
+// In game-state.js showScreen("playing"):
+resetTimer()
 
-**How to avoid**: All resets happen in game-state.js, in `showScreen("playing")`, in a defined order.
+// In timer.js:
+setInterval(() => {
+  if (getGameState() !== "playing") return
+  updateTimer() // No reset here
+}, 1000)
+```
+
+**Why Dangerous**: Resets scattered across codebase are hard to track. Centralized resets guarantee consistency.
 
 ---
 
 ### Bug 4: Checking DOM Instead of State
 
-**The mistake**:
-```
-A system checks if an element is visible: if (!element.classList.contains("hidden"))
-Instead of checking state: if (getGameState() === "playing")
+**Example**:
+```javascript
+// BAD: Checking if screen is visible
+if (!gameScreenNode.classList.contains("hidden")) {
+  updateGame()
+}
 ```
 
-**Why it's dangerous**: The system depends on CSS class names, which can change during refactoring. DOM visibility can be wrong if state is not managed carefully. State is the source of truth, not CSS.
+**Fix**:
+```javascript
+// GOOD: Checking state variable
+if (getGameState() === "playing") {
+  updateGame()
+}
+```
 
-**How to avoid**: Always check `getGameState()` directly. Let the state-to-screen mapping in game-state.js handle CSS.
+**Why Dangerous**: DOM and state can desync (e.g., CSS changes, animations). State is source of truth.
 
 ---
 
 ### Bug 5: Using Flags Instead of State
 
-**The mistake**:
-```
-A new system creates its own `isRunning` flag to track whether it should behave.
-Example: let isRunning = false; // private to the system
+**Example**:
+```javascript
+// BAD: Parallel flag system
+let isGameRunning = false
+
+function startGame() {
+  isGameRunning = true
+  gameState = "playing"
+}
 ```
 
-**Why it's dangerous**: You now have two authorities (state and the flag) instead of one. They can get out of sync. It's unclear which one is the source of truth.
+**Fix**:
+```javascript
+// GOOD: State is the only source of truth
+function startGame() {
+  gameState = "playing"
+}
 
-**How to avoid**: Use `getGameState()` directly. There is one state; all systems obey it.
+// Check state directly:
+if (getGameState() === "playing") {
+  // ...
+}
+```
+
+**Why Dangerous**: Flags and state can desync. Multiple sources of truth create bugs.
 
 ---
 
-## Summary: State Controls Everything
+## Key Principles (Non-Negotiable)
 
-```
-STATE MACHINE:
+1. **State controls behavior** — Not timers, not flags, not DOM. State is the authority.
 
-start (waiting) ──[click Start]──> playing (active) ──[goal|timer|collision]──> gameOver (frozen)
-    ↑                                                                                  │
-    └──────────────[click Restart]──────────────────────[page reload]────────────────┘
+2. **Systems obey state** — Every system that acts must check state or be isolated by visibility.
 
-SYSTEMS BEHAVIOR:
+3. **Transitions are sacred** — State changes only via `showScreen()` or `triggerGameOver()`. Never set `gameState` directly elsewhere.
 
-                    start          playing        gameOver
-Player movement     blocked        allowed        blocked
-Obstacles          spawned not    active         cleanup
-Timer countdown    blocked        counting       blocked
-Audio              silent         playing        silent
-Cones/Persons      not created    created/moving cleanup
-Player input       ignored        processed      ignored
-```
+4. **Resets are centralized** — All reset logic lives in `game-state.js`. Systems don't reset themselves.
 
-When adding new features, always ask:
-1. **In which state(s) should this run?** (Usually only `"playing"`)
-2. **How do I check state?** (Call `getGameState()` explicitly)
-3. **What cleanup happens?** (What resets in `showScreen("playing")`?)
+5. **State is checked often** — Continuous systems check state in every iteration. State can change anytime.
 
-State is the traffic light. Your feature is the car. Red light = don't go.
+6. **One source of truth** — `gameState` variable in `game-state.js`. Never duplicate state logic.
+
+---
+
+## State Validation Checklist
+
+When adding new features, ask these questions:
+
+- [ ] Does this system run continuously? → Add explicit state check
+- [ ] Does this system respond to events? → Verify state isolation (visibility or caller)
+- [ ] Does this system need reset? → Add reset function and call it from `game-state.js`
+- [ ] Does this system check state? → Use `getGameState()`, never read `gameState` directly
+- [ ] Does this system change state? → Only via `showScreen()` or `triggerGameOver()`
+- [ ] Does this system use flags? → Replace with state checks if possible
+- [ ] Does this system check DOM visibility? → Replace with state checks
+
+---
+
+## Architecture Summary
+
+**State Machine**: Simple 3-state FSM (`start` → `playing` → `gameOver`)
+
+**Control Flow**: State gates behavior (traffic light model)
+
+**Reset Strategy**: Centralized reset on transition to `"playing"`
+
+**Gating Strategy**: Mix of explicit checks (autonomous systems) and implicit isolation (passive systems)
+
+**Safety Mechanism**: Early return guards in all continuous loops
+
+**Source of Truth**: `js/game-state.js` owns state variable and all transitions
+
+---
+
+## Related Documentation
+
+- [Boot Flow](boot-flow.md) — How the game initializes before state machine takes over
+- [Reset Logic](reset-logic.md) — Detailed explanation of all reset functions
+- [Responsibility Map](responsibility-map.md) — Which modules own which behaviors
+- [Timing Model](timing-model.md) — How intervals and event loops coordinate with state
+
+---
+
+## For Copilot: Adding New Features
+
+When implementing new gameplay features:
+
+1. **Always check state first** if your system runs continuously
+2. **Never bypass state** — even if you think it's safe
+3. **Add reset function** if your feature has persistent state
+4. **Call reset from game-state.js** during `showScreen("playing")`
+5. **Test all three states** — verify your feature behaves correctly in start, playing, and gameOver
+6. **Never introduce new states** — use existing three states only
+7. **Never duplicate state logic** — use `getGameState()` exclusively
+
+State is not optional. State is not a suggestion. State is the law.

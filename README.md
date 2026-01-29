@@ -1,0 +1,45 @@
+# Forki — Bird’s-Eye View
+
+## 1. Project Overview (What this is)
+This is a small browser game built in plain JavaScript with no frameworks. The DOM is the game world, and everything is intentionally simple and explicit so it is easy to read and learn from.
+
+## 2. How to Run the Project
+- Open [index.html](index.html) in a browser.
+- No build step, no install, no dependencies.
+
+## 3. Repository Structure (High Level)
+A quick guided tour of the top level:
+- [index.html](index.html) — entry point that defines the world.
+- [style.css](style.css) — visuals only.
+- [js/](js/) — all game logic.
+- [documentation/](documentation/) — human‑readable explanations.
+- [.github/tasks/](.github/tasks/) — Copilot instruction history (process, not runtime).
+- [archive/](archive/) — historical reference (v1).
+- [reference/](reference/) — inspiration material.
+- [assets/](assets/) — audio or images.
+
+## 4. Runtime Architecture (Very High Level)
+At a high level:
+- The DOM is the world.
+- Entities are DOM elements.
+- Movement is pixel‑based.
+- Collisions use DOM rectangles.
+- State controls when systems run.
+- Timing is split into:
+  - Event‑driven updates (player).
+  - Interval‑driven updates (obstacles, timer).
+
+## 5. Navigation Guide (Where to read next)
+For deeper explanations, start here:
+- [documentation/architecture-overview.md](documentation/architecture-overview.md)
+- [documentation/boot-flow.md](documentation/boot-flow.md)
+- [documentation/state-machine.md](documentation/state-machine.md)
+- [documentation/world-model.md](documentation/world-model.md)
+- [documentation/entities/player.md](documentation/entities/player.md)
+- [documentation/entities/box.md](documentation/entities/box.md)
+- [documentation/entities/rat.md](documentation/entities/rat.md)
+- [documentation/entities/persons.md](documentation/entities/persons.md)
+- [documentation/entities/cones.md](documentation/entities/cones.md)
+
+## 6. Philosophy & Constraints (Important)
+This project avoids frameworks on purpose. Clarity is more important than abstraction, and there is no hidden magic, no engines, and no build step. Everything is visible and traceable in the repo so it can be read and understood, not just played.

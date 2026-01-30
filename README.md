@@ -2,6 +2,7 @@
 
 ## 1. Project Overview (What this is)
 This is a small browser game built in plain JavaScript with no frameworks. The DOM is the game world, and everything is intentionally simple and explicit so it is easy to read and learn from.
+Forki is designed to be forked—hence the name—and used as an architectural framework for learning. It is AI-generated templating code intended to be studied, reverse-engineered, and rebuilt as a guided learning exercise.
 
 *For fast immersion, do checkout the [audio-guide](documentation/reference-material/audio-guide.m4a) and [how it comes to life](documentation/how-it-comes-to-life.md) sources. 
 
